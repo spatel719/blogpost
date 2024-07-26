@@ -1,66 +1,62 @@
-import express from "express";
-import bodyParser from "body-parser";
-import pg from "pg";
+'use strict';
+module.exports = balanced;
+function balanced(a, b, str) {
+  if (a instanceof RegExp) a = maybeMatch(a, str);
+  if (b instanceof RegExp) b = maybeMatch(b, str);
 
-const db = new pg.Client({
-  user: "postgres",
-  host: "localhost",
-  database: "blogpost",
-  password: "sejal12",
-  port: 5432,
-});
-const app = express();
-const port = 3000;
+  var r = range(a, b, str);
 
-db.connect();
+  return r && {
+    start: r[0],
+    end: r[1],
+    pre: str.slice(0, r[0]),
+    body: str.slice(r[0] + a.length, r[1]),
+    post: str.slice(r[1] + b.length)
+  };
+}
 
-let blog = [];
- db.query("SELECT * FROM blogs", (err, res) => {
-  if (err) {
-    console.error("Error executing query", err.stack);
-  } else {
-    blog = res.rows;
+function maybeMatch(reg, str) {
+  var m = str.match(reg);
+  return m ? m[0] : null;
+}
+
+balanced.range = range;
+function range(a, b, str) {
+  var begs, beg, left, right, result;
+  var ai = str.indexOf(a);
+  var bi = str.indexOf(b, ai + 1);
+  var i = ai;
+
+  if (ai >= 0 && bi > 0) {
+    if(a===b) {
+      return [ai, bi];
+    }
+    begs = [];
+    left = str.length;
+
+    while (i >= 0 && !result) {
+      if (i == ai) {
+        begs.push(i);
+        ai = str.indexOf(a, i + 1);
+      } else if (begs.length == 1) {
+        result = [ begs.pop(), bi ];
+      } else {
+        beg = begs.pop();
+        if (beg < left) {
+          left = beg;
+          right = bi;
+        }
+
+        bi = str.indexOf(b, i + 1);
+      }
+
+      i = ai < bi && ai >= 0 ? ai : bi;
+    }
+
+    if (begs.length) {
+      result = [ left, right ];
+    }
   }
-  db.end();
-});
 
-
-
-app.use(express.static("public"));
-app.use(bodyParser.urlencoded({ extended: true }));
-
-app.get("/", (req, res) => {
-  res.render("index.ejs",{blogs:blog});
-});
-
-
-
-app.post("/submit", (req, res) => {
- 
-    debugger;
-         let ti =  req.body["blog"] ;
- let i = 11;
-        let des =  req.body["description"];
-        db.connect();
-          
-          db.query(
-            "INSERT INTO blogs (id,title, description) VALUES($1, $2,$3)",[i,ti, des]
-          );
-          
-        db.end();
-          
-        res.render("index.ejs",{blogs:blog});
-
-    });
-
-    app.get("/update", (req, res) => {
-
-    
-        let title = req.body.title;
-        //let desc = req.body["description"];
-        res.render("index.ejs", { blog:title});
-     
-    });
-app.listen(port, () => {
-  console.log(`Listening on port ${port}`);
-});
+  return result;
+}
